@@ -15,7 +15,11 @@ typedef struct mrb_shared_string {
     return mrb_bool_value(!!(RSTRING(self)->flags & MRB_STR_##flag));       \
   }
 
-#define str_bytesize(mrb, self) mrb_fixnum_value(RSTRING_LEN(self))
+#define str_bytesize(mrb, self) \
+  mrb_fixnum_value(RSTRING_LEN(self))
+#define str_fshared_to_s(mrb, self) \
+  simple_inspect(mrb, str_fshared(mrb, self), ">")
+
 #define INSPECT_INTERNAL(str, self, name, func) do {                        \
   mrb_value ret__ = str_##func(mrb, self);                                  \
   if (!mrb_string_p(ret__)) ret__ = mrb_inspect(mrb, ret__);                \
@@ -49,6 +53,12 @@ simple_inspect(mrb_state *mrb, mrb_value self, const char *suffix)
 }
 
 static mrb_value
+str_ro_data_p(mrb_state *mrb, mrb_value self)
+{
+  return mrb_bool_value(mrb_ro_data_p(RSTRING_PTR(self)));
+}
+
+static mrb_value
 str_null_terminated_p(mrb_state *mrb, mrb_value self)
 {
   return mrb_bool_value(!RSTRING_PTR(self)[RSTRING_LEN(self)]);
@@ -65,8 +75,9 @@ str_capacity(mrb_state *mrb, mrb_value self)
 static mrb_value
 str_fshared(mrb_state *mrb, mrb_value self)
 {
-  mrb_value fshared = mrb_obj_value(RSTRING(self)->as.heap.aux.fshared);
-  return simple_inspect(mrb, fshared, ">");
+  struct RString *s = RSTRING(self);
+  return RSTR_FSHARED_P(s) ?
+    mrb_obj_value(s->as.heap.aux.fshared) : mrb_nil_value();
 }
 
 static mrb_value
@@ -119,10 +130,11 @@ str_internal_inspect(mrb_state *mrb, mrb_value self)
   INSPECT_INTERNAL(ret, self, "frozen?         ", frozen_p);
   INSPECT_INTERNAL(ret, self, "pool?           ", pool_p);
   INSPECT_INTERNAL(ret, self, "ascii?          ", ascii_p);
+  INSPECT_INTERNAL(ret, self, "ro_data?        ", ro_data_p);
   INSPECT_INTERNAL(ret, self, "null_terminated?", null_terminated_p);
   INSPECT_INTERNAL(ret, self, "bytesize        ", bytesize);
   if (RSTR_FSHARED_P(s)) {
-    INSPECT_INTERNAL(ret, self, "fshared         ", fshared);
+    INSPECT_INTERNAL(ret, self, "fshared         ", fshared_to_s);
   }
   else if (RSTR_SHARED_P(s)) {
     INSPECT_INTERNAL(ret, self, "shared          ", shared);
@@ -148,8 +160,10 @@ mrb_mruby_object_internal_init_string(mrb_state* mrb)
   mrb_define_method(mrb, s, "nofree?", str_nofree_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, s, "pool?", str_pool_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, s, "ascii?", str_ascii_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, s, "ro_data?", str_ro_data_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, s, "null_terminated?", str_null_terminated_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, s, "capacity", str_capacity, MRB_ARGS_NONE());
+  mrb_define_method(mrb, s, "fshared", str_fshared, MRB_ARGS_NONE());
   mrb_define_method(mrb, s, "shared_capacity", str_shared_capacity, MRB_ARGS_NONE());
   mrb_define_method(mrb, s, "shared_reference_count", str_shared_reference_count, MRB_ARGS_NONE());
   mrb_define_method(mrb, s, "internal_inspect", str_internal_inspect, MRB_ARGS_NONE());
