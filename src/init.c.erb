@@ -1,14 +1,14 @@
-<%# -*- mode: c -*- -%>
+% # -*- mode: c -*-
 #include <mruby.h>
-<%
-gem_root = File.expand_path("#{__FILE__}/../..")
-gem_name = File.basename(gem_root).tr("-", "_")
-
-names = Dir["#{gem_root}/src/*.{c,erb}"].each_with_object([]) do |path, names|
-  next if path == __FILE__.ext || File.extname(path) == ".erb"
-  names << File.basename(path).ext
-end
--%>
+%
+% gem_root = File.expand_path("#{__FILE__}/../..")
+% gem_name = File.basename(gem_root).tr("-", "_")
+%
+% names = Dir["#{gem_root}/src/*.{c,erb}"].each_with_object([]) do |path, names|
+%   next if path == __FILE__.ext || File.extname(path) == ".erb"
+%   names << File.basename(path).ext
+% end
+%
 
 % names.each do |name|
 void mrb_<%=gem_name%>_init_<%=name%>(mrb_state *mrb);
