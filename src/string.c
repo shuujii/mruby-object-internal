@@ -34,11 +34,11 @@ str_s_embeddable_capacity(mrb_state *mrb, mrb_value klass)
   return mrb_fixnum_value(RSTRING_EMBED_LEN_MAX);
 }
 
+DEFINE_FLAG_PREDICATE_FUNC(frozen, FROZEN)
 DEFINE_FLAG_PREDICATE_FUNC(embedded, EMBED)
 DEFINE_FLAG_PREDICATE_FUNC(shared, SHARED)
 DEFINE_FLAG_PREDICATE_FUNC(fshared, FSHARED)
 DEFINE_FLAG_PREDICATE_FUNC(nofree, NOFREE)
-DEFINE_FLAG_PREDICATE_FUNC(frozen, FROZEN)
 DEFINE_FLAG_PREDICATE_FUNC(pool, POOL)
 DEFINE_FLAG_PREDICATE_FUNC(ascii, ASCII)
 
@@ -123,11 +123,11 @@ str_internal_inspect(mrb_state *mrb, mrb_value self)
 {
   struct RString *s = RSTRING(self);
   mrb_value ret = simple_inspect(mrb, self, "\n");
+  INSPECT_INTERNAL(ret, self, "frozen?         ", frozen_p);
   INSPECT_INTERNAL(ret, self, "embedded?       ", embedded_p);
   INSPECT_INTERNAL(ret, self, "shared?         ", shared_p);
   INSPECT_INTERNAL(ret, self, "fshared?        ", fshared_p);
   INSPECT_INTERNAL(ret, self, "nofree?         ", nofree_p);
-  INSPECT_INTERNAL(ret, self, "frozen?         ", frozen_p);
   INSPECT_INTERNAL(ret, self, "pool?           ", pool_p);
   INSPECT_INTERNAL(ret, self, "ascii?          ", ascii_p);
   INSPECT_INTERNAL(ret, self, "ro_data?        ", ro_data_p);
@@ -145,29 +145,30 @@ str_internal_inspect(mrb_state *mrb, mrb_value self)
   else {
     INSPECT_INTERNAL(ret, self, "capacity        ", capacity);
   }
-  mrb_str_cat_lit(mrb, ret, ">");
+  RSTR_SET_LEN(mrb_str_ptr(ret), RSTR_LEN(mrb_str_ptr(ret)) - 1);
+  mrb_str_cat_lit(mrb, ret, ">\n");
   return ret;
 }
 
 void
 mrb_mruby_object_internal_init_string(mrb_state* mrb)
 {
-  struct RClass * s = mrb->string_class;
-  mrb_define_class_method(mrb, s, "embeddable_capacity", str_s_embeddable_capacity, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "embedded?", str_embedded_p, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "shared?", str_shared_p, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "fshared?", str_fshared_p, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "nofree?", str_nofree_p, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "pool?", str_pool_p, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "ascii?", str_ascii_p, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "ro_data?", str_ro_data_p, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "null_terminated?", str_null_terminated_p, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "capacity", str_capacity, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "fshared", str_fshared, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "shared_capacity", str_shared_capacity, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "shared_reference_count", str_shared_reference_count, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "internal_inspect", str_internal_inspect, MRB_ARGS_NONE());
-  mrb_define_method(mrb, s, "ii", str_internal_inspect, MRB_ARGS_NONE());
+  struct RClass *c = mrb->string_class;
+  mrb_define_class_method(mrb, c, "embeddable_capacity", str_s_embeddable_capacity, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "embedded?", str_embedded_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "shared?", str_shared_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "fshared?", str_fshared_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "nofree?", str_nofree_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "pool?", str_pool_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "ascii?", str_ascii_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "ro_data?", str_ro_data_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "null_terminated?", str_null_terminated_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "capacity", str_capacity, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "fshared", str_fshared, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "shared_capacity", str_shared_capacity, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "shared_reference_count", str_shared_reference_count, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "internal_inspect", str_internal_inspect, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "ii", str_internal_inspect, MRB_ARGS_NONE());
 
   mrb_intern_lit(mrb, "abcdefghijklmnopqrstuvwxyz");
 }
