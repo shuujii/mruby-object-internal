@@ -169,6 +169,4 @@ mrb_mruby_object_internal_init_string(mrb_state* mrb)
   mrb_define_method(mrb, c, "shared_reference_count", str_shared_reference_count, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "internal_inspect", str_internal_inspect, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "ii", str_internal_inspect, MRB_ARGS_NONE());
-
-  mrb_intern_lit(mrb, "abcdefghijklmnopqrstuvwxyz");
 }

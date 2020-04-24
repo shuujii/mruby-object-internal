@@ -1,0 +1,124 @@
+%# -*- mode: c -*-
+#include <mruby.h>
+#include <mruby/hash.h>
+#include <mruby/string.h>
+%
+% attrs = [
+%   {name: "default?"},
+%   {name: "default_proc?"},
+%   {name: "ar?"},
+%   {name: "size"},
+%   {name: "n_used", define: true},
+%   {name: "ea", define: true, pointer: true},
+%   {name: "ea_capacity", define: true},
+%   {name: "ht", ht_only: true, pointer: true},
+%   {name: "ib_bit", ht_only: true},
+% ].each do |a|
+%   case name = a[:name]
+%   when /^(.*?)\?$/
+%#     a[:type] = :bool
+%     a[:func] = "#{$1}_p"
+%     a[:c_type] = "mrb_bool"
+%     a[:to_mrb_value] = "mrb_bool_value"
+%   else
+%#     a[:type] = :int
+%     a[:func] = name.sub(/(_capa)city$/, '\1')
+%     a[:c_type] = a[:pointer] ? "void*" : "uint32_t"
+%     a[:to_mrb_value] = "mrb_fixnum_value"
+%   end
+% end
+%
+#define PRAGMA_WARNING0(x) _Pragma(#x)
+#if defined(__clang__)
+# define PRAGMA_WARNING(x) PRAGMA_WARNING0(clang diagnostic x)
+//#elif defined(__GNUC__)
+//# define PRAGMA_WARNING(x) PRAGMA_WARNING0(GCC diagnostic x)
+#else
+# define PRAGMA_WARNING(x)
+#endif
+
+PRAGMA_WARNING(push)
+PRAGMA_WARNING(ignored "-Wunused-function")
+<%=
+  content = File.read("#{MRUBY_ROOT}/src/hash.c")
+  content.sub(/\A.*?^(#define.*?)\n*^static .*\z/m, '\1')
+%>
+DEFINE_SWITCHER(default, DEFAULT)
+DEFINE_SWITCHER(default_proc, PROC_DEFAULT)
+PRAGMA_WARNING(pop)
+
+#define h_ib_bit ib_bit
+
+% attrs.each do |a|
+%   next unless a[:define]
+static <%=a[:c_type]%>
+h_<%=a[:func]%>(const struct RHash *h)
+{
+  return (h_ar_p(h) ? ar_<%=a[:func]%> : ht_<%=a[:func]%>)(h);
+}
+
+% end
+% attrs.each do |a|
+%   next if a[:pointer]
+static mrb_value
+hash_<%=a[:func]%>(mrb_state *mrb, mrb_value self)
+{
+  struct RHash *h = mrb_hash_ptr(self);
+% if a[:ht_only]
+  if (h_ar_p(h)) return mrb_nil_value();
+% end
+  return <%=a[:to_mrb_value]%>(h_<%=a[:func]%>(h));
+}
+
+% end
+
+static mrb_value
+hash_ht_p(mrb_state *mrb, mrb_value self)
+{
+  struct RHash *h = mrb_hash_ptr(self);
+  return mrb_bool_value(h_ht_p(h));
+}
+
+static mrb_value
+hash_internal_inspect(mrb_state *mrb, mrb_value self)
+{
+  struct RHash *h = mrb_hash_ptr(self);
+  mrb_value ret = mrb_any_to_s(mrb, self);
+  *(RSTRING_END(ret)-1) = ' ';
+  mrb_str_cat_str(mrb, ret, mrb_inspect(mrb, self));
+  mrb_str_cat_lit(mrb, ret, "\n");
+% width = attrs.map{|a| a[:name].size}.max
+% sep = "  "
+% attrs.each do |a|
+%   if a[:ht_only]
+  if (h_ar_p(h)) goto finish;
+%   end
+  mrb_str_cat_lit(mrb, ret, <%=sep.dump%>);
+  mrb_str_cat_lit(mrb, ret, "<%=a[:name]%><%=" " * (width-a[:name].size)%> = ");
+%  if a[:pointer]
+  mrb_str_cat_lit(mrb, ret, "#<");
+  mrb_str_cat_str(mrb, ret, mrb_ptr_to_str(mrb, h_<%=a[:func]%>(h)));
+  mrb_str_cat_lit(mrb, ret, ">");
+%   else
+  mrb_str_cat_str(mrb, ret, mrb_inspect(mrb, hash_<%=a[:func]%>(mrb, self)));
+%   end
+%   sep = "\n  "
+% end
+ finish:
+  mrb_str_cat_lit(mrb, ret, ">");
+  return ret;
+}
+
+void
+mrb_mruby_object_internal_init_hash(mrb_state* mrb)
+{
+  struct RClass *c = mrb->hash_class;
+% attrs.each do |a|
+%   next if a[:pointer]
+  mrb_define_method(mrb, c, "<%=a[:name]%>", hash_<%=a[:func]%>, MRB_ARGS_NONE());
+% end
+  mrb_define_method(mrb, c, "ht?", hash_ht_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "internal_inspect", hash_internal_inspect, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "ii", hash_internal_inspect, MRB_ARGS_NONE());
+}
+
