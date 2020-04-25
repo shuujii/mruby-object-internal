@@ -27,7 +27,7 @@
 %     a[:to_mrb_value] = "mrb_fixnum_value"
 %   end
 % end
-%
+
 #define PRAGMA_WARNING0(x) _Pragma(#x)
 #if defined(__clang__)
 # define PRAGMA_WARNING(x) PRAGMA_WARNING0(clang diagnostic x)
@@ -58,15 +58,16 @@ h_<%=a[:func]%>(const struct RHash *h)
 }
 
 % end
+%
 % attrs.each do |a|
 %   next if a[:pointer]
 static mrb_value
 hash_<%=a[:func]%>(mrb_state *mrb, mrb_value self)
 {
   struct RHash *h = mrb_hash_ptr(self);
-% if a[:ht_only]
+%   if a[:ht_only]
   if (h_ar_p(h)) return mrb_nil_value();
-% end
+%   end
   return <%=a[:to_mrb_value]%>(h_<%=a[:func]%>(h));
 }
 
@@ -88,25 +89,33 @@ hash_internal_inspect(mrb_state *mrb, mrb_value self)
   mrb_str_cat_str(mrb, ret, mrb_inspect(mrb, self));
   mrb_str_cat_lit(mrb, ret, "\n");
 % width = attrs.map{|a| a[:name].size}.max
-% sep = "  "
+% sep = ""
 % attrs.each do |a|
 %   if a[:ht_only]
   if (h_ar_p(h)) goto finish;
 %   end
-  mrb_str_cat_lit(mrb, ret, <%=sep.dump%>);
+  mrb_str_cat_lit(mrb, ret, <%=sep.dump%> "  ");
   mrb_str_cat_lit(mrb, ret, "<%=a[:name]%><%=" " * (width-a[:name].size)%> = ");
-%  if a[:pointer]
+%   if a[:pointer]
   mrb_str_cat_lit(mrb, ret, "#<");
   mrb_str_cat_str(mrb, ret, mrb_ptr_to_str(mrb, h_<%=a[:func]%>(h)));
   mrb_str_cat_lit(mrb, ret, ">");
 %   else
   mrb_str_cat_str(mrb, ret, mrb_inspect(mrb, hash_<%=a[:func]%>(mrb, self)));
 %   end
-%   sep = "\n  "
+%   sep = "\n"
 % end
  finish:
   mrb_str_cat_lit(mrb, ret, ">");
   return ret;
+}
+
+static mrb_value
+hash_s_new_with_capacity(mrb_state *mrb, mrb_value klass)
+{
+  mrb_int capa;
+  mrb_get_args(mrb, "i", &capa);
+  return mrb_hash_new_capa(mrb, capa);
 }
 
 void
@@ -115,6 +124,7 @@ mrb_mruby_object_internal_init_hash(mrb_state* mrb)
   struct RClass *c = mrb->hash_class;
 % attrs.each do |a|
 %   next if a[:pointer]
+  mrb_define_class_method(mrb, c, "new_with_capacity", hash_s_new_with_capacity, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, c, "<%=a[:name]%>", hash_<%=a[:func]%>, MRB_ARGS_NONE());
 % end
   mrb_define_method(mrb, c, "ht?", hash_ht_p, MRB_ARGS_NONE());
