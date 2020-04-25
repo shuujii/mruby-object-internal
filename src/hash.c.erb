@@ -1,6 +1,7 @@
 %# -*- mode: c -*-
 #include <mruby.h>
 #include <mruby/hash.h>
+#include <mruby/numeric.h>
 #include <mruby/string.h>
 #include <mruby/object_internal.h>
 %
@@ -61,7 +62,6 @@ h_<%=a[:func]%>(const struct RHash *h)
 % end
 %
 % attrs.each do |a|
-%   next if a[:pointer]
 static mrb_value
 hash_<%=a[:func]%>(mrb_state *mrb, mrb_value self)
 {
@@ -69,7 +69,14 @@ hash_<%=a[:func]%>(mrb_state *mrb, mrb_value self)
 %   if a[:ht_only]
   if (h_ar_p(h)) return mrb_nil_value();
 %   end
+%   if a[:pointer]
+  {
+    void *ptr = h_<%=a[:func]%>(h);
+    return ptr ? mrb_int_value(mrb, (mrb_float)(uintptr_t)ptr) : mrb_nil_value();
+  }
+%   else
   return <%=a[:to_mrb_value]%>(h_<%=a[:func]%>(h));
+%   end
 }
 
 % end
@@ -122,7 +129,6 @@ mrb_mruby_object_internal_init_hash(mrb_state* mrb)
 {
   struct RClass *c = mrb->hash_class;
 % attrs.each do |a|
-%   next if a[:pointer]
   mrb_define_class_method(mrb, c, "new_with_capacity", hash_s_new_with_capacity, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, c, "<%=a[:name]%>", hash_<%=a[:func]%>, MRB_ARGS_NONE());
 % end
@@ -130,4 +136,3 @@ mrb_mruby_object_internal_init_hash(mrb_state* mrb)
   mrb_define_method(mrb, c, "internal_inspect", hash_internal_inspect, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "ii", hash_internal_inspect, MRB_ARGS_NONE());
 }
-
