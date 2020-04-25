@@ -1,5 +1,6 @@
 #include <mruby.h>
 #include <mruby/string.h>
+#include <mruby/object_internal.h>
 
 typedef struct mrb_shared_string {
   int refcnt;
@@ -83,11 +84,7 @@ str_fshared(mrb_state *mrb, mrb_value self)
 static mrb_value
 str_shared(mrb_state *mrb, mrb_value self)
 {
-  mrb_value ptr_str = mrb_ptr_to_str(mrb, RSTRING(self)->as.heap.aux.shared);
-  mrb_value ret = mrb_str_new_lit(mrb, "#<");
-  mrb_str_cat_str(mrb, ret, ptr_str);
-  mrb_str_cat_lit(mrb, ret, ">");
-  return ret;
+  return mrb_obj_internal_ptr_to_str(mrb, RSTRING(self)->as.heap.aux.shared);
 }
 
 static mrb_value

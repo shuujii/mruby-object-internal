@@ -2,6 +2,7 @@
 #include <mruby.h>
 #include <mruby/hash.h>
 #include <mruby/string.h>
+#include <mruby/object_internal.h>
 %
 % attrs = [
 %   {name: "default?"},
@@ -97,9 +98,7 @@ hash_internal_inspect(mrb_state *mrb, mrb_value self)
   mrb_str_cat_lit(mrb, ret, <%=sep.dump%> "  ");
   mrb_str_cat_lit(mrb, ret, "<%=a[:name]%><%=" " * (width-a[:name].size)%> = ");
 %   if a[:pointer]
-  mrb_str_cat_lit(mrb, ret, "#<");
-  mrb_str_cat_str(mrb, ret, mrb_ptr_to_str(mrb, h_<%=a[:func]%>(h)));
-  mrb_str_cat_lit(mrb, ret, ">");
+  mrb_str_cat_str(mrb, ret, mrb_obj_internal_ptr_to_str(mrb, h_<%=a[:func]%>(h)));
 %   else
   mrb_str_cat_str(mrb, ret, mrb_inspect(mrb, hash_<%=a[:func]%>(mrb, self)));
 %   end
