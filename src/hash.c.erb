@@ -11,22 +11,24 @@
 %   {name: "ar?"},
 %   {name: "size"},
 %   {name: "n_used", define: true},
-%   {name: "ea", define: true, pointer: true},
+%   {name: "ea", define: true},
 %   {name: "ea_capacity", define: true},
-%   {name: "ht", ht_only: true, pointer: true},
+%   {name: "ht", ht_only: true},
 %   {name: "ib_bit", ht_only: true},
 % ].each do |a|
 %   case name = a[:name]
 %   when /^(.*?)\?$/
-%#     a[:type] = :bool
-%     a[:func] = "#{$1}_p"
+%     a[:type] = :bool
 %     a[:c_type] = "mrb_bool"
-%     a[:to_mrb_value] = "mrb_bool_value"
+%     a[:func] = "#{$1}_p"
+%   when "ea", "ht"
+%     a[:type] = :ptr
+%     a[:c_type] = "void*";
+%     a[:func] = name
 %   else
-%#     a[:type] = :int
+%     a[:type] = :int
+%     a[:c_type] = "uint32_t"
 %     a[:func] = name.sub(/(_capa)city$/, '\1')
-%     a[:c_type] = a[:pointer] ? "void*" : "uint32_t"
-%     a[:to_mrb_value] = "mrb_fixnum_value"
 %   end
 % end
 
@@ -50,6 +52,14 @@ DEFINE_SWITCHER(default_proc, PROC_DEFAULT)
 PRAGMA_WARNING(pop)
 
 #define h_ib_bit ib_bit
+#define value_from_bool(mrb, v) mrb_bool_value(v)
+#define value_from_int(mrb, v) mrb_fixnum_value(v)
+
+static mrb_value
+value_from_ptr(mrb_state *mrb, void *ptr)
+{
+  return ptr ? mrb_int_value(mrb, (mrb_float)(uintptr_t)ptr) : mrb_nil_value();
+}
 
 % attrs.each do |a|
 %   next unless a[:define]
@@ -69,14 +79,7 @@ hash_<%=a[:func]%>(mrb_state *mrb, mrb_value self)
 %   if a[:ht_only]
   if (h_ar_p(h)) return mrb_nil_value();
 %   end
-%   if a[:pointer]
-  {
-    void *ptr = h_<%=a[:func]%>(h);
-    return ptr ? mrb_int_value(mrb, (mrb_float)(uintptr_t)ptr) : mrb_nil_value();
-  }
-%   else
-  return <%=a[:to_mrb_value]%>(h_<%=a[:func]%>(h));
-%   end
+  return value_from_<%=a[:type]%>(mrb, h_<%=a[:func]%>(h));
 }
 
 % end
@@ -104,7 +107,7 @@ hash_internal_inspect(mrb_state *mrb, mrb_value self)
 %   end
   mrb_str_cat_lit(mrb, ret, <%=sep.dump%> "  ");
   mrb_str_cat_lit(mrb, ret, "<%=a[:name]%><%=" " * (width-a[:name].size)%> = ");
-%   if a[:pointer]
+%   if a[:type] == :ptr
   mrb_str_cat_str(mrb, ret, mrb_obj_internal_ptr_to_str(mrb, h_<%=a[:func]%>(h)));
 %   else
   mrb_str_cat_str(mrb, ret, mrb_inspect(mrb, hash_<%=a[:func]%>(mrb, self)));
