@@ -1,0 +1,93 @@
+%# -*- mode: c -*-
+#include <mruby.h>
+#include <mruby/gc.h>
+#include <mruby/numeric.h>
+%
+% consts = [
+%   {c_name: "MAJOR_GC_TOOMANY", name: "MAJOR_TOO_MANY"},
+%   {c_name: "MAJOR_GC_INC_RATIO"},
+%   {c_name: "GC_STEP_SIZE"},
+% ].each do |c|
+%   c[:name] ||= c[:c_name].sub("GC_", "")
+% end
+%
+% attrs = [
+%   {c_name: "live"},
+%   {c_name: "live_after_mark"},
+%   {c_name: "threshold"},
+%   {c_name: "majorgc_old_threshold", name: "major_old_threshold"},
+% ].each do |c|
+%   c[:name] ||= c[:c_name]
+% end
+%
+% colors = %w[gray black]
+%
+% macros = consts.map{_1[:c_name]}.concat %w[
+%   GC_GRAY
+%   GC_BLACK
+%   is_gray
+%   is_black
+%   is_generational
+%   is_major_gc
+%   is_minor_gc
+% ]
+
+% macro_re = /^#define (?:#{macros * '|'})\b/
+% File.foreach("#{MRUBY_ROOT}/src/gc.c") do |line|
+%   next unless line.match?(macro_re)
+<%=line.chomp!%>
+% end
+
+% attrs.each do |a|
+static mrb_value
+gc_s_<%=a[:name]%>(mrb_state *mrb, mrb_value klass)
+{
+  return mrb_int_value(mrb, mrb->gc.<%=a[:c_name]%>);
+}
+
+% end
+% %w[major minor].each do |m|
+static mrb_value
+gc_s_<%=m%>_p(mrb_state *mrb, mrb_value klass)
+{
+  return mrb_bool_value(is_<%=m%>_gc(&mrb->gc));
+}
+
+% end
+static mrb_value
+gc_s_state(mrb_state *mrb, mrb_value klass)
+{
+  const char *states[] = {"root", "mark", "sweep"};
+  mrb_sym state = mrb_intern_cstr(mrb, states[mrb->gc.state]);
+  return mrb_symbol_value(state);
+}
+
+% colors.each do |c|
+static mrb_value
+gc_s_<%=c%>_p(mrb_state *mrb, mrb_value klass)
+{
+  mrb_value obj;
+  mrb_get_args(mrb, "o", &obj);
+  if (mrb_immediate_p(obj)) return mrb_false_value();
+  return mrb_bool_value(is_<%=c%>(mrb_obj_ptr(obj)));
+}
+
+% end
+void
+mrb_mruby_object_internal_init_gc(mrb_state* mrb)
+{
+  struct RClass *c = mrb_module_get(mrb, "GC");
+% consts.each do |c|
+  mrb_define_const(mrb, c, "<%=c[:name]%>", mrb_fixnum_value(<%=c[:c_name]%>));
+% end
+% attrs.each do |a|
+  mrb_define_class_method(mrb, c, "<%=a[:name]%>", gc_s_<%=a[:name]%>, MRB_ARGS_NONE());
+% end
+% %w[major minor].each do |m|
+  mrb_define_class_method(mrb, c, "<%=m%>?", gc_s_<%=m%>_p, MRB_ARGS_NONE());
+% end
+  mrb_define_class_method(mrb, c, "state", gc_s_state, MRB_ARGS_NONE());
+% colors.each do |c|
+  mrb_define_class_method(mrb, c, "<%=c%>?", gc_s_<%=c%>_p, MRB_ARGS_REQ(1));
+% end
+}
