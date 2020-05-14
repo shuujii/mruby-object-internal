@@ -2,6 +2,11 @@
 #include <mruby.h>
 #include <mruby/gc.h>
 #include <mruby/numeric.h>
+
+#ifndef MRB_HEAP_PAGE_SIZE
+#define MRB_HEAP_PAGE_SIZE 1024
+#endif
+
 %
 % consts = [
 %   {c_name: "MAJOR_GC_TOOMANY", name: "MAJOR_TOO_MANY"},
@@ -20,13 +25,13 @@
 %   c[:name] ||= c[:c_name]
 % end
 %
-% colors = %w[gray black]
+% colors = %w[white_a white_b gray black]
 %
 % macros = consts.map{_1[:c_name]}.concat %w[
 %   GC_GRAY
+%   GC_WHITE_A
+%   GC_WHITE_B
 %   GC_BLACK
-%   is_gray
-%   is_black
 %   is_generational
 %   is_major_gc
 %   is_minor_gc
@@ -62,17 +67,50 @@ gc_s_state(mrb_state *mrb, mrb_value klass)
   return mrb_symbol_value(state);
 }
 
-% colors.each do |c|
 static mrb_value
-gc_s_<%=c%>_p(mrb_state *mrb, mrb_value klass)
+gc_s_current_white(mrb_state *mrb, mrb_value klass)
+{
+  mrb_sym sym = mrb->gc.current_white_part == GC_WHITE_A ?
+    mrb_intern_lit(mrb, "white_a") : mrb_intern_lit(mrb, "white_b");
+  return mrb_symbol_value(sym);
+}
+
+static mrb_value
+gc_s_color(mrb_state *mrb, mrb_value klass)
 {
   mrb_value obj;
   mrb_get_args(mrb, "o", &obj);
-  if (mrb_immediate_p(obj)) return mrb_false_value();
-  return mrb_bool_value(is_<%=c%>(mrb_obj_ptr(obj)));
+  if (mrb_immediate_p(obj)) return mrb_nil_value();
+  switch (mrb_obj_ptr(obj)->color) {
+% colors.each do |c|
+  case GC_<%=c.upcase%>:
+    return mrb_symbol_value(mrb_intern_lit(mrb, "<%=c%>"));
+    break;
+% end
+  default:
+    return mrb_nil_value();
+  }
 }
 
-% end
+static mrb_value
+gc_s_generation(mrb_state *mrb, mrb_value klass)
+{
+  mrb_value obj;
+  mrb_heap_page *page = mrb->gc.heaps;
+  char *ptr;
+  mrb_sym sym;
+  mrb_get_args(mrb, "o", &obj);
+  if (!mrb->gc.generational) return mrb_nil_value();
+  if (mrb_immediate_p(obj)) return mrb_nil_value();
+  for (ptr = (char*)mrb_basic_ptr(obj); page; page = page->next) {
+    char *p = (char*)page->objects;
+    if (ptr < p || p + MRB_HEAP_PAGE_SIZE * sizeof(void*) * 6 < ptr) continue;
+    sym = page->old ? mrb_intern_lit(mrb, "old") : mrb_intern_lit(mrb, "young");
+    return mrb_symbol_value(sym);
+  }
+  return mrb_nil_value();
+}
+
 void
 mrb_mruby_object_internal_init_gc(mrb_state* mrb)
 {
@@ -87,7 +125,7 @@ mrb_mruby_object_internal_init_gc(mrb_state* mrb)
   mrb_define_class_method(mrb, c, "<%=m%>?", gc_s_<%=m%>_p, MRB_ARGS_NONE());
 % end
   mrb_define_class_method(mrb, c, "state", gc_s_state, MRB_ARGS_NONE());
-% colors.each do |c|
-  mrb_define_class_method(mrb, c, "<%=c%>?", gc_s_<%=c%>_p, MRB_ARGS_REQ(1));
-% end
+  mrb_define_class_method(mrb, c, "current_white", gc_s_current_white, MRB_ARGS_NONE());
+  mrb_define_class_method(mrb, c, "color", gc_s_color, MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, c, "generation", gc_s_generation, MRB_ARGS_REQ(1));
 }
