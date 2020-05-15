@@ -50,8 +50,8 @@ class HashEntries < Array
   self.class.alias_method :[], :new
 
   def initialize(entries) self.replace(entries) end
-  def key(index) self[index][0] end
-  def value(index) self[index][1] end
+  def key(index, k=get=true) get ? self[index][0] : (self[index][0] = k) end
+  def value(index, v=get=true) get ? self[index][1] : (self[index][1] = v) end
   def to_s; "#{self.class}#{super}" end
   alias inspect to_s
 
@@ -68,7 +68,7 @@ def ar_entries
     [HashKey[2], :two],
     [nil, :two],
     [:one, 1],
-    ["NIL", nil],
+    ["&", "&amp;"],
     [HashKey[6], :six],  # same hash code as HashKey[2]
     [HashKey[5], :five],
   ]
@@ -83,7 +83,7 @@ def ht_entries
     ["key_code", "h"],
     ["h", 0x04],
     [[3, 2, 1], "three, two, one"],
-    [:auto, false],
+    [:auto, true],
     [:path, "/path/to/file"],
     [:name, "Ruby"],
   )
@@ -116,6 +116,43 @@ assert 'mrb_hash_new_capa()' do
   assert_new_capa [[:ar?, false], [:ib_bit, 5]], 17
   assert_new_capa [[:ar?, false], [:ib_bit, 11]], 1536
   assert_new_capa [[:ar?, false], [:ib_bit, 12]], 1537
+end
+
+assert 'mrb_hash_merge()' do
+  ar_pairs = HashEntries[
+    [:_a, "a"],
+    [HashKey[-4], :two],
+    [-51, "Q"],
+    [HashKey[-2], -6],
+  ]
+  ht_pairs = ht_entries.dup.push(
+    [:_a, "_a"],
+    [HashKey[-14], :c],
+    [-40, "@"],
+    [HashKey[-12], -16],
+  )
+  [[ar_pairs, ht_pairs], [ht_pairs, ar_pairs]].each do |entries1, entries2|
+    pairs1 = HashEntries[*entries1.map{|k, v| [k.dup, v]}]
+    pairs2 = HashEntries[*entries2.map{|k, v| [k.dup, v]}]
+    h1 = pairs1.hash_for
+    pairs1.key(-3).value = pairs1.key(-1).value
+    h2 = pairs2.hash_for
+    pairs2.key(-3).value = pairs2.key(-1).value
+    pairs2.each do |k2, v2|
+      if pair = pairs1.find{|k1, v1| k1.eql?(k2)}
+        pair[1] = v2
+      else
+        pairs1 << [k2, v2]
+      end
+    end
+    Hash.merge(h1, h2)
+    assert_equal pairs1, h1.to_a
+
+
+
+#    h1_entries.key(1).callback = ->(*){h2.clear}
+#    assert_raise_with_message(RuntimeError, "hash modified"){Hash.merge(h1,h2)}
+  end
 end
 
 # TODO: mrb_hash_merge() など他の MRB_API のテストも必要

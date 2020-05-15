@@ -127,12 +127,22 @@ hash_s_new_with_capacity(mrb_state *mrb, mrb_value klass)
   return mrb_hash_new_capa(mrb, capa);
 }
 
+static mrb_value
+hash_s_merge(mrb_state *mrb, mrb_value klass)
+{
+  mrb_value hash1, hash2;
+  mrb_get_args(mrb, "HH", &hash1, &hash2);
+  mrb_hash_merge(mrb, hash1, hash2);
+  return hash1;
+}
+
 void
 mrb_mruby_object_internal_init_hash(mrb_state* mrb)
 {
   struct RClass *c = mrb->hash_class;
 % attrs.each do |a|
   mrb_define_class_method(mrb, c, "new_with_capacity", hash_s_new_with_capacity, MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, c, "merge", hash_s_merge, MRB_ARGS_REQ(2));
   mrb_define_method(mrb, c, "<%=a[:name]%>", hash_<%=a[:func]%>, MRB_ARGS_NONE());
 % end
   mrb_define_method(mrb, c, "ht?", hash_ht_p, MRB_ARGS_NONE());
