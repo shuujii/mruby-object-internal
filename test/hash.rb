@@ -114,11 +114,26 @@ assert 'mrb_hash_new_capa()' do
   assert_new_capa [[:ar?, true]], 7
   assert_new_capa [[:ar?, true]], 16
   assert_new_capa [[:ar?, false], [:ib_bit, 5]], 17
+  assert_new_capa [[:ar?, false], [:ib_bit, 8]], 128
   assert_new_capa [[:ar?, false], [:ib_bit, 11]], 1536
   assert_new_capa [[:ar?, false], [:ib_bit, 12]], 1537
 end
 
 assert 'mrb_hash_merge()' do
+  create_same_key = ->(entries) do
+    pairs = HashEntries[*entries.map{|k, v| [k.dup, v]}]
+    h = pairs.hash_for
+    pairs.key(-3).value = pairs.key(-1).value
+    [pairs, h]
+  end
+  merge_entries = -> (entries1, entries2) do
+    entries2.each do |k2, v2|
+      entry = entries1.find{|k1,_| k1.eql?(k2)}
+      entry ? (entry[1] = v2) : (entries1 << [k2, v2])
+    end
+    entries1
+  end
+
   ar_pairs = HashEntries[
     [:_a, "a"],
     [HashKey[-4], :two],
@@ -131,27 +146,40 @@ assert 'mrb_hash_merge()' do
     [-40, "@"],
     [HashKey[-12], -16],
   )
+
   [[ar_pairs, ht_pairs], [ht_pairs, ar_pairs]].each do |entries1, entries2|
-    pairs1 = HashEntries[*entries1.map{|k, v| [k.dup, v]}]
-    pairs2 = HashEntries[*entries2.map{|k, v| [k.dup, v]}]
-    h1 = pairs1.hash_for
-    pairs1.key(-3).value = pairs1.key(-1).value
-    h2 = pairs2.hash_for
-    pairs2.key(-3).value = pairs2.key(-1).value
-    pairs2.each do |k2, v2|
-      if pair = pairs1.find{|k1, v1| k1.eql?(k2)}
-        pair[1] = v2
-      else
-        pairs1 << [k2, v2]
-      end
-    end
+    pairs1, h1 = create_same_key.(entries1)
+    pairs2, h2 = create_same_key.(entries2)
+    Hash.merge(h1, h2)
+    assert_equal merge_entries.(pairs1, pairs2), h1.to_a
+
+    pairs1, h1 = [], {}
+    pairs2, h2 = create_same_key.(entries1)
+    Hash.merge(h1, h2)
+    assert_equal merge_entries.(pairs1, pairs2), h1.to_a
+
+    pairs1, h1 = create_same_key.(entries1)
+    h2 = {}
     Hash.merge(h1, h2)
     assert_equal pairs1, h1.to_a
 
+    pairs, h = create_same_key.(entries1)
+    Hash.merge(h, h)
+    assert_equal pairs, h.to_a
 
+    pairs1, h1 = create_same_key.(entries1)
+    h2 = {}
+    assert_raise(FrozenError){Hash.merge(h1.freeze, h2)}
 
-#    h1_entries.key(1).callback = ->(*){h2.clear}
-#    assert_raise_with_message(RuntimeError, "hash modified"){Hash.merge(h1,h2)}
+    pairs1, h1 = create_same_key.(entries1)
+    pairs2, h2 = create_same_key.(entries2)
+    pairs2.key(-1).callback = ->(*){h1.clear}
+    assert_raise_with_message(RuntimeError, "hash modified"){Hash.merge(h1, h2)}
+
+    pairs1, h1 = create_same_key.(entries1)
+    pairs2, h2 = create_same_key.(entries2)
+    pairs2.key(-1).callback = ->(*){h2.clear}
+    assert_raise_with_message(RuntimeError, "hash modified"){Hash.merge(h1, h2)}
   end
 end
 
@@ -182,6 +210,8 @@ assert 'Hash#[]= internal' do
 
   #  size, ea_capa, ib_bit
   [ [  17,      25,      5],
+    [ 127,     130,      8],
+    [ 128,     130,      8],
     [ 367,     367,      9],
     [ 368,     446,      9],
     [ 768,     792,     10],
