@@ -241,9 +241,13 @@ assert 'initialize(expand) IB with same key' do
   assert_equal entries.size, h.size
   assert_equal entries, h.to_a
   assert_equal 1, h[HashKey[1]]
-  assert_equal 2, h[HashKey[2]]
   (3..(entries.size-1)).each{assert_equal nil, h[HashKey[_1]]}
   assert_equal entries.size, h[HashKey[entries.size]]
+
+  # When initializing(expanding) the IB, if a collision occurs, the EA is
+  # not checked and is treated as a different key, so the value
+  # corresponding to the first registered key is returned.
+  assert_equal 2, h[HashKey[2]]
 end
 
 #assert 'Large Hash' do
