@@ -2,15 +2,6 @@
 # Hash Tests (strongly dependent on the implementation)
 #
 
-#
-# TODO:
-#   EA に重複キーがあるときに IB が拡張すると、size/n_used が EA と IB で一
-#   致しなくなる。これを一致するようにすることは (ht_set 相当の処理を行えば)
-#   可能だとは思うが遅くなりそう。IB の size/n_used のほうが小さい場合は動作
-#   的には問題ない気がするのと、rehash 以外ではこの状態が解消されないのはお
-#   かしくない気もするので、そのままで良さそう。
-#
-
 class HashKey
   attr_accessor :value, :error, :callback
 
@@ -239,6 +230,20 @@ assert 'Hash#clear internal' do
       [:ea_capacity, 0],
     ], h
   end
+end
+
+assert 'initialize(expand) IB with same key' do
+  entries = HashEntries[*(1..16).map{[HashKey[_1], _1]}]
+  h = entries.hash_for
+  (2..(entries.size-1)).each{entries.key(_1).value = 2}
+  entries << [HashKey[entries.size+1], entries.size+1]
+  h.[]=(*entries[-1])
+  assert_equal entries.size, h.size
+  assert_equal entries, h.to_a
+  assert_equal 1, h[HashKey[1]]
+  assert_equal 2, h[HashKey[2]]
+  (3..(entries.size-1)).each{assert_equal nil, h[HashKey[_1]]}
+  assert_equal entries.size, h[HashKey[entries.size]]
 end
 
 #assert 'Large Hash' do
