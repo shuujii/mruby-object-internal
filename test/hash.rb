@@ -2,6 +2,14 @@
 # Hash Tests (strongly dependent on the implementation)
 #
 
+module Enumerable
+  def to_h(&block)
+    h = {}
+    each{|e| h.[]=(*block.(e))}
+    h
+  end
+end
+
 class HashKey
   attr_accessor :value, :error, :callback
 
@@ -99,6 +107,10 @@ def assert_new_capa(exp, capa)
   assert_hash_internal(exp, Hash.new_with_capacity(capa))
 end
 
+def assert_modified_error(&block)
+  assert_raise_with_message(RuntimeError, "hash modified", &block)
+end
+
 assert 'mrb_hash_new_capa()' do
   assert_new_capa [[:ar?, true], [:ea, nil]], 0
   assert_new_capa [[:ar?, true]], 1
@@ -165,16 +177,17 @@ assert 'mrb_hash_merge()' do
     pairs1, h1 = create_same_key.(entries1)
     pairs2, h2 = create_same_key.(entries2)
     pairs2.key(-1).callback = ->(*){h1.clear}
-    assert_raise_with_message(RuntimeError, "hash modified"){Hash.merge(h1, h2)}
+    assert_modified_error{Hash.merge(h1, h2)}
 
     pairs1, h1 = create_same_key.(entries1)
     pairs2, h2 = create_same_key.(entries2)
     pairs2.key(-1).callback = ->(*){h2.clear}
-    assert_raise_with_message(RuntimeError, "hash modified"){Hash.merge(h1, h2)}
+    assert_modified_error{Hash.merge(h1, h2)}
   end
 end
 
 # TODO: mrb_hash_merge() など他の MRB_API のテストも必要
+# TODO: できれば mrb_hash_foreach() のテストもしたい。
 
 assert 'Hash#[]= internal' do
   size = 0
@@ -219,6 +232,28 @@ assert 'Hash#[]= internal' do
   end
 end
 
+assert 'Hash#[]= internal (overwrite)' do
+  #     ar, size, ea_capa, ib_bit
+  [ [ true,    2,       4,    nil],
+    [ true,    9,      10,    nil],
+    [ true,   10,      10,    nil],
+    [ true,   16,      16,    nil],
+    [false,   17,      25,      5],
+    [false,   24,      25,      6],  # IB expands when overwriting
+    [false,   25,      25,      6],
+  ].each do |ar, size, ea_capa, ib_bit|
+    h = (1..size).to_h{[_1, _1]}
+    h[1] = -1
+    assert_hash_internal [
+      [:ar?, ar],
+      [:size, size],
+      [:n_used, size],
+      [:ea_capacity, ea_capa],
+      [:ib_bit, ib_bit],
+    ], h
+  end
+end
+
 assert 'Hash#clear internal' do
   [ar_entries.hash_for, ht_entries.hash_for].each do |h|
     h.clear
@@ -248,6 +283,98 @@ assert 'initialize(expand) IB with same key' do
   # not checked and is treated as a different key, so the value
   # corresponding to the first registered key is returned.
   assert_equal 2, h[HashKey[2]]
+end
+
+assert 'EA and IB expansion at the same time' do
+  h = Hash.new_with_capacity(35)
+  size = 48
+  (1..size).each{h[_1] = _1}
+  assert_hash_internal [
+    [:ar?, false],
+    [:size, size],
+    [:n_used, size],
+    [:ea_capacity, 48],
+    [:ib_bit, 6],
+  ], h
+
+  size += 1
+  h[size] = size
+  assert_hash_internal [
+    [:ar?, false],
+    [:size, size],
+    [:n_used, size],
+    [:ea_capacity, 63],
+    [:ib_bit, 7],
+  ], h
+end
+
+assert 'Hash#[]= with deleted internal (AR)' do
+  #             1 2 3 4  5  6  7  8  9 10 11 12 13 14 15 16
+  ea_capas   = [4,4,4,4,10,10,10,10,10,10,16,16,16,16,16,16]
+  used_sizes = [2,3,4,4, 6, 7, 8, 9,10,10,12,13,14,15,16,16]  # after set
+
+  ea_capas.each_with_index do |capa, i|
+    size = i + 1
+    h = (1..size).to_h{[_1, _1]}
+    h.delete(size.div(2) + 1)
+    assert "after delete (initial size: #{size})" do
+      assert_hash_internal [
+        [:ar?, true],
+        [:size, size - 1],
+        [:n_used, size],
+        [:ea_capacity, capa],
+      ], h
+    end
+
+    h[0] = 0
+    assert "after set (initial size: #{size})" do
+      assert_hash_internal [
+        [:ar?, true],
+        [:size, size],
+        [:n_used, used_sizes[i]],
+        [:ea_capacity, capa],
+      ], h
+    end
+  end
+end
+
+assert 'Hash#[]= with deleted internal (HT)' do
+  #   init_size, n_del, [   ar, size, n_used, ea_capa, ib_bit]
+  [ [        24,     8, [false,   17,     17,      25,      5]],
+    [        25,    20, [false,    6,     26,      36,      6]],
+    [        48,    48, [ true,    1,      1,       4,    nil]],
+    [        48,    44, [ true,    5,      5,      10,    nil]],
+    [        48,    40, [ true,    9,      9,      15,    nil]],
+    [        48,    32, [false,   17,     17,      25,      5]],
+    [        48,    17, [false,   32,     32,      43,      6]],
+    [        48,    16, [false,   33,     33,      44,      7]],
+    [        48,    10, [false,   39,     39,      49,      7]],
+    [        48,     1, [false,   48,     48,      49,      7]],
+  ].each do |init_size, n_del, (ar, size, n_used, ea_capa, ib_bit)|
+    h = (1..init_size).to_h{[_1, _1]}
+    (1..n_del).each{h.delete(_1)}
+    h[0] = 0
+    assert "init_size: #{init_size}, n_del: #{n_del}" do
+      assert_hash_internal [
+        [:ar?, ar],
+        [:size, size],
+        [:n_used, n_used],
+        [:ea_capacity, ea_capa],
+        [:ib_bit, ib_bit],
+      ], h
+    end
+  end
+
+  # It becomes AR when size is AR_MAX_SIZE, compression, and overwriting
+  h = (1..24).to_h{[_1, _1]}
+  (1..8).each{h.delete(_1)}
+  h[16] = -16
+  assert_hash_internal [
+    [:ar?, true],
+    [:size, 16],
+    [:n_used, 16],
+    [:ea_capacity, 16],
+  ], h
 end
 
 #assert 'Large Hash' do
