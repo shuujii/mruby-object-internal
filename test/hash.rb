@@ -51,6 +51,10 @@ class HashEntries < Array
   def initialize(entries) self.replace(entries) end
   def key(index, k=get=true) get ? self[index][0] : (self[index][0] = k) end
   def value(index, v=get=true) get ? self[index][1] : (self[index][1] = v) end
+  def keys; map{|k, v| k} end
+  def values; map{|k, v| v} end
+  def each_key(&block) each{|k, v| block.(k)} end
+  def each_value(&block) each{|k, v| block.(v)} end
   def to_s; "#{self.class}#{super}" end
   alias inspect to_s
 
@@ -86,6 +90,12 @@ def ht_entries
     [:path, "/path/to/file"],
     [:name, "Ruby"],
   )
+end
+
+def assert_iterator(exp, obj, meth)
+  params = []
+  obj.__send__(meth) {|param| params << param}
+  assert_equal exp, params
 end
 
 def assert_hash_internal(exp, act)
@@ -375,6 +385,21 @@ assert 'Hash#[]= with deleted internal (HT)' do
     [:n_used, 16],
     [:ea_capacity, 16],
   ], h
+end
+
+%i[each each_key each_value].each do |meth|
+  assert "Hash##{meth} with modifieded key" do
+    [ar_entries, ht_entries].each do |entries|
+      k1, k2, k3 = HashKey[-1], HashKey[-2], HashKey[-3]
+      entries.push([k1, 3], [k2, 5], [k3, 6])
+      h = entries.hash_for
+      k1.value = -10
+      k2.value = -3
+      exp = []
+      entries.__send__(meth){|param| exp << param}
+      assert_iterator exp, h, meth
+    end
+  end
 end
 
 #assert 'Large Hash' do
