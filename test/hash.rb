@@ -277,6 +277,33 @@ assert 'Hash#clear internal' do
   end
 end
 
+assert 'literal internal' do
+  # literal use mrb_hash_new_capa()
+
+  # literal,
+  #     ar, size, ea_capa, ib_bit
+  [ [{},
+      true,    0,       0,    nil],
+    [{a:1},
+      true,    1,       1,    nil],
+    [{a:1,b:1,c:1,d:1,e:1},
+      true,    5,       5,    nil],
+    [{a:1,b:1,c:1,d:1,e:1,f:1,g:1,h:1,i:1,j:1,k:1,l:1,m:1,n:1,o:1,p:1},
+      true,   16,      16,    nil],
+    [{a:1,b:1,c:1,d:1,e:1,f:1,g:1,h:1,i:1,j:1,k:1,l:1,m:1,n:1,o:1,p:1,q:1},
+      false,  17,      17,      5],
+  ].each do |h, ar, size, ea_capa, ib_bit|
+    assert_nil h.ea if size == 0
+    assert_hash_internal [
+      [:ar?, ar],
+      [:size, size],
+      [:n_used, size],
+      [:ea_capacity, ea_capa],
+      [:ib_bit, ib_bit],
+    ], h
+  end
+end
+
 assert 'initialize(expand) IB with same key' do
   entries = HashEntries[*(1..16).map{[HashKey[_1], _1]}]
   h = entries.hash_for
