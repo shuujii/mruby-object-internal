@@ -5,7 +5,7 @@
 module Enumerable
   def to_h(&block)
     h = {}
-    each{|e| h.[]=(*block.(e))}
+    each{|e| h.store(*block.(e))}
     h
   end
 end
@@ -55,6 +55,7 @@ class HashEntries < Array
   def values; map{|k, v| v} end
   def each_key(&block) each{|k, v| block.(k)} end
   def each_value(&block) each{|k, v| block.(v)} end
+  def dup2; self.class[*map{|k, v| [k.dup, v.dup]}] end
   def to_s; "#{self.class}#{super}" end
   alias inspect to_s
 
@@ -72,8 +73,8 @@ def ar_entries
     [nil, :two],
     [:one, 1],
     ["&", "&amp;"],
-    [HashKey[6], :six],  # same hash code as HashKey[2]
-    [HashKey[5], :five],
+    [HashKey[6], :six],
+    [HashKey[5], :five],  # same hash code as HashKey[2]
   ]
 end
 
@@ -83,13 +84,25 @@ def ht_entries
     [:date, "2020-05-02"],
     [200, "OK"],
     ["modifiers", ["left_shift", "control"]],
+    [:banana, :yellow],
+    ["JSON", "JavaScript Object Notation"],
+    [:size, :large],
     ["key_code", "h"],
     ["h", 0x04],
     [[3, 2, 1], "three, two, one"],
     [:auto, true],
+    [HashKey[12], "December"],
     [:path, "/path/to/file"],
     [:name, "Ruby"],
   )
+end
+
+def merge_entries!(entries1, entries2)
+  entries2.each do |k2, v2|
+    entry1 = entries1.find{|k1, _| k1.eql?(k2)}
+    entry1 ? (entry1[1] = v2) : (entries1 << [k2, v2])
+  end
+  entries1
 end
 
 def assert_iterator(exp, obj, meth)
@@ -134,17 +147,10 @@ end
 
 assert 'mrb_hash_merge()' do
   create_same_key = ->(entries) do
-    pairs = HashEntries[*entries.map{|k, v| [k.dup, v]}]
+    pairs = entries.dup2
     h = pairs.hash_for
     pairs.key(-3).value = pairs.key(-1).value
     [pairs, h]
-  end
-  merge_entries = -> (entries1, entries2) do
-    entries2.each do |k2, v2|
-      entry = entries1.find{|k1,_| k1.eql?(k2)}
-      entry ? (entry[1] = v2) : (entries1 << [k2, v2])
-    end
-    entries1
   end
 
   ar_pairs = HashEntries[
@@ -164,12 +170,12 @@ assert 'mrb_hash_merge()' do
     pairs1, h1 = create_same_key.(entries1)
     pairs2, h2 = create_same_key.(entries2)
     Hash.merge(h1, h2)
-    assert_equal merge_entries.(pairs1, pairs2), h1.to_a
+    assert_equal merge_entries!(pairs1, pairs2), h1.to_a
 
     pairs1, h1 = [], {}
     pairs2, h2 = create_same_key.(entries1)
     Hash.merge(h1, h2)
-    assert_equal merge_entries.(pairs1, pairs2), h1.to_a
+    assert_equal merge_entries!(pairs1, pairs2), h1.to_a
 
     pairs1, h1 = create_same_key.(entries1)
     h2 = {}
@@ -309,7 +315,7 @@ assert 'initialize(expand) IB with same key' do
   h = entries.hash_for
   (2..(entries.size-1)).each{entries.key(_1).value = 2}
   entries << [HashKey[entries.size+1], entries.size+1]
-  h.[]=(*entries[-1])
+  h.store(*entries[-1])
   assert_equal entries.size, h.size
   assert_equal entries, h.to_a
   assert_equal 1, h[HashKey[1]]
@@ -425,6 +431,19 @@ end
       exp = []
       entries.__send__(meth){|param| exp << param}
       assert_iterator exp, h, meth
+    end
+  end
+end
+
+%i[keys values].each do |meth|
+  assert "Hash##{meth} with modifieded key" do
+    [ar_entries, ht_entries].each do |entries|
+      k1, k2, k3 = HashKey[-1], HashKey[-2], HashKey[-3]
+      entries.push([k1, 3], [k2, 5], [k3, 6])
+      h = entries.hash_for
+      k1.value = -10
+      k2.value = -3
+      assert_equal entries.__send__(meth), h.__send__(meth)
     end
   end
 end
