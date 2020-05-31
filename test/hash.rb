@@ -456,3 +456,10 @@ end
 #  assert_equal(entries, h.to_a)
 #  entries.each {|k, v| assert_equal(v, h[k])}
 #end
+
+#assert "Hash TODO" do
+#  assert_raise(FrozenError){{}.freeze.delete(1){}}
+#  %i[reject! select!].each do |meth|
+#    assert_raise(FrozenError){{}.freeze.__send__(meth){}}
+#  end
+#end
