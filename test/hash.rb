@@ -2,6 +2,8 @@
 # Hash Tests (strongly dependent on the implementation)
 #
 
+RUN_SLOW_TEST = false
+
 module Enumerable
   def to_h(&block)
     h = {}
@@ -237,7 +239,7 @@ assert 'Hash#[]= internal' do
     [ 768,     792,     10],
     [ 769,     792,     11],
   ].each do |size, ea_capa, ib_bit|
-    (h.size+1).upto(size) {|n| h[n] = true}
+    n = h.size+1; (h[n] = true; n+=1) while n <= size
     assert_hash_internal [
       [:ar?, false],
       [:size, size],
@@ -245,6 +247,27 @@ assert 'Hash#[]= internal' do
       [:ea_capacity, ea_capa],
       [:ib_bit, ib_bit],
     ], h
+  end
+end
+
+if RUN_SLOW_TEST
+  assert 'Hash#[]= internal (EA maximum increase)' do
+    h = {}
+    #    size, ea_capa, ib_bit
+    [ [280196,  280196,     19],
+      [280197,  336241,     19],
+      [336242,  401776,     19],
+      [401777,  467311,     20],
+    ].each do |size, ea_capa, ib_bit|
+      n = h.size+1; (h[n] = true; n+=1) while n <= size
+      assert_hash_internal [
+        [:ar?, false],
+        [:size, size],
+        [:n_used, size],
+        [:ea_capacity, ea_capa],
+        [:ib_bit, ib_bit],
+      ], h
+    end
   end
 end
 
@@ -448,14 +471,16 @@ end
   end
 end
 
-#assert 'Large Hash' do
-#  entries = (1..70000).map {|n| [n, n * 2]}
-#  h = {}
-#  entries.each {|k, v| h[k] = v}
-#  assert_equal(entries.size, h.size)
-#  assert_equal(entries, h.to_a)
-#  entries.each {|k, v| assert_equal(v, h[k])}
-#end
+if RUN_SLOW_TEST
+  assert 'Large Hash' do
+    entries = (1..70000).map {|n| [n, n * 2]}
+    h = {}
+    entries.each {|k, v| h[k] = v}
+    assert_equal(entries.size, h.size)
+    assert_equal(entries, h.to_a)
+    entries.each {|k, v| assert_equal(v, h[k])}
+  end
+end
 
 #assert "Hash TODO" do
 #  assert_raise(FrozenError){{}.freeze.delete(1){}}
