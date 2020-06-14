@@ -147,6 +147,37 @@ assert 'mrb_hash_new_capa()' do
   assert_new_capa [[:ar?, false], [:ib_bit, 12]], 1537
 end
 
+assert 'mrb_hash_foreach()' do
+  [ar_entries, ht_entries].each do |entries|
+    h = entries.hash_for(Hash.new(-1))
+    assert_equal entries, HashTest.to_a_by_foreach(h)
+  end
+end
+
+assert 'mrb_hash_dup()' do
+  cls = Class.new(Hash){attr_accessor :foo}
+  [ar_entries, ht_entries].each do |entries|
+    h1 = entries.hash_for(cls.new(61)){|h| h.foo = 23}.freeze
+    h2 = HashTest.dup!(h1)
+    assert_not_predicate(h2, :frozen?)
+    assert_equal(h1.class, h2.class)
+    assert_equal(entries, h2.to_a)
+    assert_equal(nil, h2.foo)
+    assert_not_operator(h2, :key?, "_not_found_")
+    h2[-10] = 10
+    assert_equal(10, h2[-10])
+    assert_not_operator(h1, :key?, -10)
+
+    h = entries.hash_for
+    k = HashKey[-1]
+    h[k] = 1
+    k.callback = ->(*){h.clear}
+    assert_nothing_raised{h.dup}
+  end
+end
+
+# TODO: mrb_hash_fetch()
+
 assert 'mrb_hash_merge()' do
   create_same_key = ->(entries) do
     pairs = entries.dup2
@@ -203,10 +234,6 @@ assert 'mrb_hash_merge()' do
     assert_modified_error{HashTest.merge(h1, h2)}
   end
 end
-
-# TODO: mrb_hash_foreach()
-# TODO: mrb_hash_dup()
-# TODO: mrb_hash_fetch()
 
 assert 'Hash#[]= internal' do
   size = 0
