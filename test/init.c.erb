@@ -1,0 +1,23 @@
+%# -*- mode: c -*-
+#include <mruby.h>
+%
+% gem_root = File.expand_path("#{__FILE__}/../..")
+% gem_name = File.basename(gem_root).tr("-", "_")
+%
+% names = Dir["#{gem_root}/test/*.{c,erb}"].each_with_object([]) do |path, names|
+%   next if path == __FILE__
+%   names << File.basename(path).sub(/\..*\z/, "")
+% end.sort!
+%
+
+% names.each do |name|
+void mrb_<%=gem_name%>_test_<%=name%>(mrb_state *mrb);
+% end
+
+void
+mrb_<%=gem_name%>_gem_test(mrb_state* mrb)
+{
+% names.each do |name|
+  mrb_<%=gem_name%>_test_<%=name%>(mrb); mrb_gc_arena_restore(mrb, 0);
+% end
+}

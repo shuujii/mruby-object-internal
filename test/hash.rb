@@ -129,7 +129,7 @@ end
 
 def assert_new_capa(exp, capa)
   exp += [[:size, 0], [:n_used, 0], [:ea_capacity, capa]]
-  assert_hash_internal(exp, Hash.new_with_capacity(capa))
+  assert_hash_internal(exp, HashTest.new_with_capacity(capa))
 end
 
 def assert_modified_error(&block)
@@ -171,41 +171,42 @@ assert 'mrb_hash_merge()' do
   [[ar_pairs, ht_pairs], [ht_pairs, ar_pairs]].each do |entries1, entries2|
     pairs1, h1 = create_same_key.(entries1)
     pairs2, h2 = create_same_key.(entries2)
-    Hash.merge(h1, h2)
+    HashTest.merge(h1, h2)
     assert_equal merge_entries!(pairs1, pairs2), h1.to_a
 
     pairs1, h1 = [], {}
     pairs2, h2 = create_same_key.(entries1)
-    Hash.merge(h1, h2)
+    HashTest.merge(h1, h2)
     assert_equal merge_entries!(pairs1, pairs2), h1.to_a
 
     pairs1, h1 = create_same_key.(entries1)
     h2 = {}
-    Hash.merge(h1, h2)
+    HashTest.merge(h1, h2)
     assert_equal pairs1, h1.to_a
 
     pairs, h = create_same_key.(entries1)
-    Hash.merge(h, h)
+    HashTest.merge(h, h)
     assert_equal pairs, h.to_a
 
     pairs1, h1 = create_same_key.(entries1)
     h2 = {}
-    assert_raise(FrozenError){Hash.merge(h1.freeze, h2)}
+    assert_raise(FrozenError){HashTest.merge(h1.freeze, h2)}
 
     pairs1, h1 = create_same_key.(entries1)
     pairs2, h2 = create_same_key.(entries2)
     pairs2.key(-1).callback = ->(*){h1.clear}
-    assert_modified_error{Hash.merge(h1, h2)}
+    assert_modified_error{HashTest.merge(h1, h2)}
 
     pairs1, h1 = create_same_key.(entries1)
     pairs2, h2 = create_same_key.(entries2)
     pairs2.key(-1).callback = ->(*){h2.clear}
-    assert_modified_error{Hash.merge(h1, h2)}
+    assert_modified_error{HashTest.merge(h1, h2)}
   end
 end
 
-# TODO: mrb_hash_merge() など他の MRB_API のテストも必要
-# TODO: できれば mrb_hash_foreach() のテストもしたい。
+# TODO: mrb_hash_foreach()
+# TODO: mrb_hash_dup()
+# TODO: mrb_hash_fetch()
 
 assert 'Hash#[]= internal' do
   size = 0
@@ -352,7 +353,7 @@ assert 'initialize(expand) IB with same key' do
 end
 
 assert 'EA and IB expansion at the same time' do
-  h = Hash.new_with_capacity(35)
+  h = HashTest.new_with_capacity(35)
   size = 48
   (1..size).each{h[_1] = _1}
   assert_hash_internal [
