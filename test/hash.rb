@@ -172,11 +172,19 @@ assert 'mrb_hash_dup()' do
     k = HashKey[-1]
     h[k] = 1
     k.callback = ->(*){h.clear}
-    assert_nothing_raised{h.dup}
+    assert_nothing_raised{HashTest.dup!(h)}
   end
 end
 
-# TODO: mrb_hash_fetch()
+assert 'mrb_hash_fetch()' do
+  [ar_entries, ht_entries].each do |entries|
+    h = entries.hash_for(Hash.new(:_defval))
+    assert_equal(entries.size, h.size)
+    entries.each{|k, v| assert_equal(v, HashTest.fetch(h, k, "_v"))}
+    assert_equal(nil, HashTest.fetch(h, "_not_found_", nil))
+    assert_equal("_v", HashTest.fetch(h, "_not_found_", "_v"))
+  end
+end
 
 assert 'mrb_hash_merge()' do
   create_same_key = ->(entries) do

@@ -37,6 +37,14 @@ hash_s_dup(mrb_state *mrb, mrb_value klass)
 }
 
 static mrb_value
+hash_s_fetch(mrb_state *mrb, mrb_value klass)
+{
+  mrb_value hash, key, def;
+  mrb_get_args(mrb, "Hoo", &hash, &key, &def);
+  return mrb_hash_fetch(mrb, hash, key, def);
+}
+
+static mrb_value
 hash_s_merge(mrb_state *mrb, mrb_value klass)
 {
   mrb_value hash1, hash2;
@@ -52,5 +60,6 @@ mrb_mruby_object_internal_test_hash(mrb_state* mrb)
   mrb_define_class_method(mrb, c, "new_with_capacity", hash_s_new_with_capacity, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, c, "to_a_by_foreach", hash_s_to_a_by_foreach, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, c, "dup!", hash_s_dup, MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, c, "fetch", hash_s_fetch, MRB_ARGS_REQ(3));
   mrb_define_class_method(mrb, c, "merge", hash_s_merge, MRB_ARGS_REQ(2));
 }
