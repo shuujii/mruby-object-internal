@@ -128,7 +128,7 @@ def assert_hash_internal(exp, act)
 end
 
 def assert_new_capa(exp, capa)
-  exp += [[:size, 0], [:n_used, 0], [:ea_capacity, capa]]
+  exp += [[:size, 0], [:ea_capacity, capa], [:ea_n_used, 0]]
   assert_hash_internal(exp, HashTest.new_with_capacity(capa))
 end
 
@@ -249,9 +249,9 @@ assert 'Hash#[]= internal' do
   assert_hash_internal [
     [:ar?, true],
     [:size, size],
-    [:n_used, size],
     [:ea, nil],
     [:ea_capacity, 0],
+    [:ea_n_used, size],
   ], h
 
   #1 2 3 4  5  6  7  8  9 10 11 12 13 14 15 16
@@ -261,8 +261,8 @@ assert 'Hash#[]= internal' do
     assert_hash_internal [
       [:ar?, true],
       [:size, size],
-      [:n_used, size],
       [:ea_capacity, ea_capa],
+      [:ea_n_used, size],
     ], h
   end
 
@@ -279,8 +279,8 @@ assert 'Hash#[]= internal' do
     assert_hash_internal [
       [:ar?, false],
       [:size, size],
-      [:n_used, size],
       [:ea_capacity, ea_capa],
+      [:ea_n_used, size],
       [:ib_bit, ib_bit],
     ], h
   end
@@ -299,8 +299,8 @@ if RUN_SLOW_TEST
       assert_hash_internal [
         [:ar?, false],
         [:size, size],
-        [:n_used, size],
         [:ea_capacity, ea_capa],
+        [:ea_n_used, size],
         [:ib_bit, ib_bit],
       ], h
     end
@@ -322,8 +322,8 @@ assert 'Hash#[]= internal (overwrite)' do
     assert_hash_internal [
       [:ar?, ar],
       [:size, size],
-      [:n_used, size],
       [:ea_capacity, ea_capa],
+      [:ea_n_used, size],
       [:ib_bit, ib_bit],
     ], h
   end
@@ -335,9 +335,9 @@ assert 'Hash#clear internal' do
     assert_hash_internal [
       [:ar?, true],
       [:size, 0],
-      [:n_used, 0],
       [:ea, nil],
       [:ea_capacity, 0],
+      [:ea_n_used, 0],
     ], h
   end
 end
@@ -362,8 +362,8 @@ assert 'literal internal' do
     assert_hash_internal [
       [:ar?, ar],
       [:size, size],
-      [:n_used, size],
       [:ea_capacity, ea_capa],
+      [:ea_n_used, size],
       [:ib_bit, ib_bit],
     ], h
   end
@@ -394,8 +394,8 @@ assert 'EA and IB expansion at the same time' do
   assert_hash_internal [
     [:ar?, false],
     [:size, size],
-    [:n_used, size],
     [:ea_capacity, 48],
+    [:ea_n_used, size],
     [:ib_bit, 6],
   ], h
 
@@ -404,8 +404,8 @@ assert 'EA and IB expansion at the same time' do
   assert_hash_internal [
     [:ar?, false],
     [:size, size],
-    [:n_used, size],
     [:ea_capacity, 63],
+    [:ea_n_used, size],
     [:ib_bit, 7],
   ], h
 end
@@ -423,8 +423,8 @@ assert 'Hash#[]= with deleted internal (AR)' do
       assert_hash_internal [
         [:ar?, true],
         [:size, size - 1],
-        [:n_used, size],
         [:ea_capacity, capa],
+        [:ea_n_used, size],
       ], h
     end
 
@@ -433,50 +433,44 @@ assert 'Hash#[]= with deleted internal (AR)' do
       assert_hash_internal [
         [:ar?, true],
         [:size, size],
-        [:n_used, used_sizes[i]],
         [:ea_capacity, capa],
+        [:ea_n_used, used_sizes[i]],
       ], h
     end
   end
 end
 
 assert 'Hash#[]= with deleted internal (HT)' do
-  #   init_size, n_del, [   ar, size, n_used, ea_capa, ib_bit]
-  [ [        24,     8, [false,   17,     17,      25,      5]],
-    [        25,    20, [false,    6,     26,      36,      6]],
-    [        48,    48, [ true,    1,      1,       4,    nil]],
-    [        48,    44, [ true,    5,      5,      10,    nil]],
-    [        48,    40, [ true,    9,      9,      15,    nil]],
-    [        48,    32, [false,   17,     17,      25,      5]],
-    [        48,    17, [false,   32,     32,      43,      6]],
-    [        48,    16, [false,   33,     33,      44,      7]],
-    [        48,    10, [false,   39,     39,      49,      7]],
-    [        48,     1, [false,   48,     48,      49,      7]],
-  ].each do |init_size, n_del, (ar, size, n_used, ea_capa, ib_bit)|
-    h = (1..init_size).to_h{[_1, _1]}
-    (1..n_del).each{h.delete(_1)}
-    h[0] = 0
-    assert "init_size: #{init_size}, n_del: #{n_del}" do
+  #    init    del     add  [   ar, size,   ea      ea   ib]
+  #    keys,  keys,   keys, |             capa, n_used, bit]
+  [ [ 1..24,     1,     31, [false,   24,   25,     25,   5]],
+    [ 1..24, 1..18, 31..31, [false,    7,   25,     25,   5]],
+    [ 1..24, 1..18, 31..32, [ true,    8,   14,      8, nil]],
+    [ 1..24, 1..10, 31..32, [ true,   16,   16,     16, nil]],
+    [ 1..24,  1..9, 31..31, [false,   16,   25,     25,   5]],
+    [ 1..25,  1..9, 31..31, [false,   17,   25,     17,   5]],
+    [ 1..25,  1..9,     25, [ true,   16,   16,     16, nil]],
+    [ 1..48,  1..1, 51..52, [false,   49,   49,     49,   7]],
+    [ 1..48, 1..20, 51..52, [false,   30,   40,     30,   6]],
+    [ 1..63, 1..15, 71..72, [false,   50,   64,     50,   7]],
+    [ 1..63, 1..14, 71..72, [false,   51,   82,     65,   7]],
+    [ 1..64, 1..20,     64, [false,   44,   58,     44,   7]],
+    [ 1..96,  1..1, 97..98, [false,   97,  104,     97,   8]],
+  ].each do |init_keys, del_keys, add_keys, (ar,size,ea_capa,ea_n_used,ib_bit)|
+    h = [*init_keys].to_h{[_1, _1]}
+    [*del_keys].each{h.delete(_1)}
+    [*add_keys].each{h[_1] = _1 * -1}
+    msg = "init_keys: #{init_keys}, del_keys: #{del_keys}, add_keys: #{add_keys}"
+    assert msg do
       assert_hash_internal [
         [:ar?, ar],
         [:size, size],
-        [:n_used, n_used],
         [:ea_capacity, ea_capa],
+        [:ea_n_used, ea_n_used],
         [:ib_bit, ib_bit],
       ], h
     end
   end
-
-  # It becomes AR when size is AR_MAX_SIZE, compression, and overwriting
-  h = (1..24).to_h{[_1, _1]}
-  (1..8).each{h.delete(_1)}
-  h[16] = -16
-  assert_hash_internal [
-    [:ar?, true],
-    [:size, 16],
-    [:n_used, 16],
-    [:ea_capacity, 16],
-  ], h
 end
 
 %i[each each_key each_value].each do |meth|
