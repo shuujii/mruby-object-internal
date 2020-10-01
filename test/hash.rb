@@ -329,87 +329,6 @@ assert 'Hash#[]= internal (overwrite)' do
   end
 end
 
-assert 'Hash#clear internal' do
-  [ar_entries.hash_for, ht_entries.hash_for].each do |h|
-    h.clear
-    assert_hash_internal [
-      [:ar?, true],
-      [:size, 0],
-      [:ea, nil],
-      [:ea_capacity, 0],
-      [:ea_n_used, 0],
-    ], h
-  end
-end
-
-assert 'literal internal' do
-  # literal use mrb_hash_new_capa()
-
-  # literal,
-  #     ar, size, ea_capa, ib_bit
-  [ [{},
-      true,    0,       0,    nil],
-    [{a:1},
-      true,    1,       1,    nil],
-    [{a:1,b:1,c:1,d:1,e:1},
-      true,    5,       5,    nil],
-    [{a:1,b:1,c:1,d:1,e:1,f:1,g:1,h:1,i:1,j:1,k:1,l:1,m:1,n:1,o:1,p:1},
-      true,   16,      16,    nil],
-    [{a:1,b:1,c:1,d:1,e:1,f:1,g:1,h:1,i:1,j:1,k:1,l:1,m:1,n:1,o:1,p:1,q:1},
-      false,  17,      17,      5],
-  ].each do |h, ar, size, ea_capa, ib_bit|
-    assert_nil h.ea if size == 0
-    assert_hash_internal [
-      [:ar?, ar],
-      [:size, size],
-      [:ea_capacity, ea_capa],
-      [:ea_n_used, size],
-      [:ib_bit, ib_bit],
-    ], h
-  end
-end
-
-assert 'initialize(expand) IB with same key' do
-  entries = HashEntries[*(1..16).map{[HashKey[_1], _1]}]
-  h = entries.hash_for
-  (2..(entries.size-1)).each{entries.key(_1).value = 2}
-  entries << [HashKey[entries.size+1], entries.size+1]
-  h.store(*entries[-1])
-  assert_equal entries.size, h.size
-  assert_equal entries, h.to_a
-  assert_equal 1, h[HashKey[1]]
-  (3..(entries.size-1)).each{assert_equal nil, h[HashKey[_1]]}
-  assert_equal entries.size, h[HashKey[entries.size]]
-
-  # When initializing(expanding) the IB, if a collision occurs, the EA is
-  # not checked and is treated as a different key, so the value
-  # corresponding to the first registered key is returned.
-  assert_equal 2, h[HashKey[2]]
-end
-
-assert 'EA and IB expansion at the same time' do
-  h = HashTest.new_with_capacity(35)
-  size = 48
-  (1..size).each{h[_1] = _1}
-  assert_hash_internal [
-    [:ar?, false],
-    [:size, size],
-    [:ea_capacity, 48],
-    [:ea_n_used, size],
-    [:ib_bit, 6],
-  ], h
-
-  size += 1
-  h[size] = size
-  assert_hash_internal [
-    [:ar?, false],
-    [:size, size],
-    [:ea_capacity, 63],
-    [:ea_n_used, size],
-    [:ib_bit, 7],
-  ], h
-end
-
 assert 'Hash#[]= with deleted internal (AR)' do
   #             1 2 3 4  5  6  7  8  9 10 11 12 13 14 15 16
   ea_capas   = [4,4,4,4,10,10,10,10,10,10,16,16,16,16,16,16]
@@ -499,6 +418,140 @@ end
       assert_equal entries.__send__(meth), h.__send__(meth)
     end
   end
+end
+
+assert 'Hash#clear internal' do
+  [ar_entries.hash_for, ht_entries.hash_for].each do |h|
+    h.clear
+    assert_hash_internal [
+      [:ar?, true],
+      [:size, 0],
+      [:ea, nil],
+      [:ea_capacity, 0],
+      [:ea_n_used, 0],
+    ], h
+  end
+end
+
+assert 'Hash#rehash internal' do
+  # init keys,         del keys, [   ar, size, ea_capa, ib_bit]
+  [ [    1..7,             1..7, [ true,    0,       4,    nil]],
+    [    1..9,                5, [ true,    8,      10,    nil]],
+    [   1..16,                1, [ true,   15,      16,    nil]],
+    [   1..16,                0, [ true,   16,      16,    nil]],
+    [   1..17,            1..17, [ true,    0,       4,    nil]],
+    [   1..60, [*3..10,*16..59], [ true,    8,      15,    nil]],
+    [   1..60,           11..53, [false,   17,      26,      5]],
+    [   1..60,           11..54, [ true,   16,      16,    nil]],
+    [   1..60,           11..55, [ true,   15,      16,    nil]],
+    [   1..60,           25..60, [false,   24,      34,      5]],
+    [   1..60,           26..60, [false,   25,      36,      6]],
+  ].each do |init_keys, del_keys, (ar, size, ea_capa, ib_bit)|
+    h = [*init_keys].to_h{[_1, _1]}
+    [*del_keys].each{h.delete(_1)}
+    h.rehash
+    msg = "init_keys: #{init_keys}, del_keys: #{del_keys}"
+    assert msg do
+      assert_hash_internal [
+        [:ar?, ar],
+        [:size, size],
+        [:ea_capacity, ea_capa],
+        [:ea_n_used, size],
+        [:ib_bit, ib_bit],
+      ], h
+    end
+  end
+
+  entries = HashEntries[*(1..25).map{[HashKey[_1], _1]}]
+  h = entries.hash_for
+  entries.each_key{_1.value = 1}
+  assert_hash_internal [
+    [:ar?, true],
+    [:size, 1],
+    [:ea_capacity, 4],
+    [:ea_n_used, 1],
+    [:ib_bit, nil],
+  ], h.rehash
+
+  entries = HashEntries[*(1..40).map{[HashKey[_1], _1]}]
+  h = entries.hash_for
+  (21..39).each{entries.key(_1).value = 1}
+  assert_hash_internal [
+    [:ar?, false],
+    [:size, 21],
+    [:ea_capacity, 31],
+    [:ea_n_used, 21],
+    [:ib_bit, 6],
+  ], h.rehash
+
+end
+
+assert 'literal internal' do
+  # literal use mrb_hash_new_capa()
+
+  # literal,
+  #     ar, size, ea_capa, ib_bit
+  [ [{},
+      true,    0,       0,    nil],
+    [{a:1},
+      true,    1,       1,    nil],
+    [{a:1,b:1,c:1,d:1,e:1},
+      true,    5,       5,    nil],
+    [{a:1,b:1,c:1,d:1,e:1,f:1,g:1,h:1,i:1,j:1,k:1,l:1,m:1,n:1,o:1,p:1},
+      true,   16,      16,    nil],
+    [{a:1,b:1,c:1,d:1,e:1,f:1,g:1,h:1,i:1,j:1,k:1,l:1,m:1,n:1,o:1,p:1,q:1},
+      false,  17,      17,      5],
+  ].each do |h, ar, size, ea_capa, ib_bit|
+    assert_nil h.ea if size == 0
+    assert_hash_internal [
+      [:ar?, ar],
+      [:size, size],
+      [:ea_capacity, ea_capa],
+      [:ea_n_used, size],
+      [:ib_bit, ib_bit],
+    ], h
+  end
+end
+
+assert 'initialize(expand) IB with same key' do
+  entries = HashEntries[*(1..16).map{[HashKey[_1], _1]}]
+  h = entries.hash_for
+  (2..(entries.size-1)).each{entries.key(_1).value = 2}
+  entries << [HashKey[entries.size+1], entries.size+1]
+  h.store(*entries[-1])
+  assert_equal entries.size, h.size
+  assert_equal entries, h.to_a
+  assert_equal 1, h[HashKey[1]]
+  (3..(entries.size-1)).each{assert_equal nil, h[HashKey[_1]]}
+  assert_equal entries.size, h[HashKey[entries.size]]
+
+  # When initializing(expanding) the IB, if a collision occurs, the EA is
+  # not checked and is treated as a different key, so the value
+  # corresponding to the first registered key is returned.
+  assert_equal 2, h[HashKey[2]]
+end
+
+assert 'EA and IB expansion at the same time' do
+  h = HashTest.new_with_capacity(35)
+  size = 48
+  (1..size).each{h[_1] = _1}
+  assert_hash_internal [
+    [:ar?, false],
+    [:size, size],
+    [:ea_capacity, 48],
+    [:ea_n_used, size],
+    [:ib_bit, 6],
+  ], h
+
+  size += 1
+  h[size] = size
+  assert_hash_internal [
+    [:ar?, false],
+    [:size, size],
+    [:ea_capacity, 63],
+    [:ea_n_used, size],
+    [:ib_bit, 7],
+  ], h
 end
 
 if RUN_SLOW_TEST
