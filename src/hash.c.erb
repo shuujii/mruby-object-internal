@@ -123,6 +123,7 @@ void
 mrb_mruby_object_internal_init_hash(mrb_state* mrb)
 {
   struct RClass *c = mrb->hash_class;
+  mrb_define_const(mrb, c, "MAX_SIZE", mrb_fixnum_value(H_MAX_SIZE));
 % attrs.each do |a|
   mrb_define_method(mrb, c, "<%=a[:name]%>", hash_<%=a[:func]%>, MRB_ARGS_NONE());
 % end
