@@ -4,6 +4,17 @@
 
 RUN_SLOW_TEST = false
 
+#
+# The tests for `h_check_modified()` is not run if this variable is false
+# because the nature of the allocator may cause it not to work as expected.
+#
+# If there is a problem in the implementation of `h_check_modified()`, it
+# should be detectable by valgrind or ASAN, but using them may change the
+# nature of the allocator and the test may not work as expected, so it is
+# not detected well.
+#
+RUN_H_CHECK_MODIFIED = true
+
 module Enumerable
   def to_h(&block)
     h = {}
@@ -17,11 +28,16 @@ class HashKey
 
   self.class.alias_method :[], :new
 
-  def initialize(value)
+  def initialize(value, error: nil, callback: nil, &block)
     @value = value
+    @error = error
+    @callback = callback
+    block.(self) if block
   end
 
   def ==(other)
+    @callback.(:==, self, other) if @callback
+    return raise_error(:==) if @error == true || @error == :==
     other.kind_of?(self.class) && @value == other.value
   end
 
@@ -110,7 +126,7 @@ end
 def assert_iterator(exp, obj, meth)
   params = []
   obj.__send__(meth) {|param| params << param}
-  assert_equal exp, params
+  assert_equal(exp, params)
 end
 
 def assert_hash_internal(exp, act)
@@ -129,6 +145,99 @@ end
 
 def assert_modified_error(&block)
   assert_raise_with_message(RuntimeError, "hash modified", &block)
+end
+
+if RUN_H_CHECK_MODIFIED
+  assert 'h_check_modified() (AR)' do
+    attr_names = %i[ar? size ea ea_capacity ht ib_bit]
+
+    # shink EA capa (unchange size and EA pointer)
+    h = (1..16).to_h{[_1, _1]}
+    (1..9).each{h.delete(_1)}
+    exp_attrs = attr_names.to_h{[_1, h.__send__(_1)]}
+    before_ea_capa = exp_attrs.delete(:ea_capacity)
+    k = HashKey[0, callback: ->(*) {
+      h.rehash
+      assert_operator(h.ea_capacity, :<, before_ea_capa)
+      assert_equal(exp_attrs, exp_attrs.to_h{|n, v| [n, h.__send__(n)]})
+    }]
+    assert_modified_error{h[k]}
+
+    # change EA pointer (unchange size and EA capa)
+    h = {a: 1}
+    exp_attrs = attr_names.to_h{[_1, h.__send__(_1)]}
+    before_ea = exp_attrs.delete(:ea)
+    k = HashKey[1,callback: ->(*) {
+      h.replace(a: 1)
+      assert_not_equal(h.ea, before_ea)
+      exp_attrs.each {|n, v| assert_equal(v, h.__send__(n))}
+    }]
+    assert_modified_error{h[k]}
+  end
+
+  assert 'h_check_modified() (HT)' do
+    attr_names = %i[ar? size ea ea_capacity ht ib_bit]
+
+    # shink EA capa (unchange size, IB capa, and EA/HT pointer)
+    h = (1..65).to_h{[_1, _1]}
+    (1..2).each{h.delete(_1)}
+    exp_attrs = attr_names.to_h{[_1, h.__send__(_1)]}
+    before_ea_capa = exp_attrs.delete(:ea_capacity)
+    k = HashKey[0, callback: ->(*) {
+      h.rehash
+      assert_operator(h.ea_capacity, :<, before_ea_capa)
+      assert_equal(exp_attrs, exp_attrs.to_h{|n, v| [n, h.__send__(n)]})
+    }]
+    assert_modified_error{h[k]}
+
+    # shink IB capa (unchange size, EA capa, and EA/HT pointer)
+    h = (1..25).to_h{[_1, _1]}
+    h.delete(1)
+    exp_attrs = attr_names.to_h{[_1, h.__send__(_1)]}
+    before_ib_bit = exp_attrs.delete(:ib_bit)
+    k = HashKey[0, callback: ->(*) {
+      h.rehash
+      assert_operator(h.ib_bit, :<, before_ib_bit)
+      assert_equal(exp_attrs, exp_attrs.to_h{|n, v| [n, h.__send__(n)]})
+    }]
+    assert_modified_error{h[k]}
+
+    # change EA pointer (unchange size, EA/IB capa, and HT pointer)
+    del_keys = 26..200
+    h = (1..del_keys.last).to_h{[_1, _1]}
+    del_keys.each{h.delete(_1)}
+    exp_attrs = attr_names.to_h{[_1, h.__send__(_1)]}
+    before_ea = exp_attrs.delete(:ea)
+    k = HashKey[0, callback: ->(*) {
+      del_keys.each{h[_1] = _1}
+      del_keys.each{h.delete(_1)}
+      assert_not_equal(before_ea, h.ea)
+      assert_equal(exp_attrs, exp_attrs.to_h{|n, v| [n, h.__send__(n)]})
+    }]
+    assert_modified_error{h[k]}
+
+    # change HT pointer (unchange size, EA/IB capa, and EA pointer)
+    h = (1..17).to_h{[_1, _1]}
+    exp_attrs = attr_names.to_h{[_1, h.__send__(_1)]}
+    before_ht = exp_attrs.delete(:ht)
+    k = HashKey[0, callback: ->(*) {
+      del_key = h.size
+      h.delete(del_key)
+      h.rehash
+      h2 = {a: 1}  # To make the next HT allocation a different address
+      h[del_key] = del_key
+      assert_not_equal(before_ht, h.ht)
+      assert_equal(exp_attrs, exp_attrs.to_h{|n, v| [n, h.__send__(n)]})
+    }]
+    assert_modified_error{h[k]}
+
+    # h_check_modified() is not called for empty Hash object
+    k = HashKey[0, error: true]
+    assert_nothing_raised{{}[k]}
+    assert_nothing_raised{{}[k] = 0}
+    assert_nothing_raised{{}.key?(k)}
+    assert_nothing_raised{{}.value?(k)}
+  end
 end
 
 assert 'mrb_hash_new_capa()' do
@@ -247,6 +356,8 @@ assert 'mrb_hash_merge()' do
     pairs2, h2 = create_same_key.(entries2)
     pairs2.key(-1).callback = ->(*){h2.clear}
     assert_modified_error{HashTest.merge(h1, h2)}
+
+    # TODO: receiver
   end
 end
 
@@ -565,6 +676,7 @@ if RUN_SLOW_TEST
   assert 'large Hash' do
     entries = (1..70000).map {|n| [n, n * 2]}
     h = {}
+    # TODO: 遅くなるので each を使わない
     entries.each {|k, v| h[k] = v}
     assert_equal(entries.size, h.size)
     assert_equal(entries, h.to_a)
