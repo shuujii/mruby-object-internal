@@ -566,11 +566,11 @@ end
 
 assert 'Hash#rehash internal' do
   # init keys,         del keys, [   ar, size, ea_capa, ib_bit]
-  [ [    1..7,             1..7, [ true,    0,       4,    nil]],
+  [ [    1..7,             1..7, [ true,    0,       0,    nil]],
     [    1..9,                5, [ true,    8,      10,    nil]],
     [   1..16,                1, [ true,   15,      16,    nil]],
     [   1..16,                0, [ true,   16,      16,    nil]],
-    [   1..17,            1..17, [ true,    0,       4,    nil]],
+    [   1..17,            1..17, [ true,    0,       0,    nil]],
     [   1..60, [*3..10,*16..59], [ true,    8,      15,    nil]],
     [   1..60,           11..53, [false,   17,      26,      5]],
     [   1..60,           11..54, [ true,   16,      16,    nil]],
@@ -586,6 +586,7 @@ assert 'Hash#rehash internal' do
       assert_hash_internal [
         [:ar?, ar],
         [:size, size],
+        [:ea, ea_capa == 0 ? nil : Numeric],
         [:ea_capacity, ea_capa],
         [:ea_n_used, size],
         [:ib_bit, ib_bit],
