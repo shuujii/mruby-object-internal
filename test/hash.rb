@@ -7,6 +7,8 @@ RUN_SLOW_TEST = false
 #
 # The tests for `h_check_modified()` is not run if this variable is false
 # because the nature of the allocator may cause it not to work as expected.
+# However, if the test is successful even once in some environment, it can
+# be said that the `h_check_modified()` implementation itself is correct.
 #
 # If there is a problem in the implementation of `h_check_modified()`, it
 # should be detectable by valgrind or ASAN, but using them may change the
@@ -59,7 +61,7 @@ class HashKey
   alias inspect to_s
 
   def raise_error(name)
-    raise "#{self}: #{name} error"
+    raise "#{self}: ##{name} error"
   end
 end
 
@@ -356,8 +358,19 @@ assert 'mrb_hash_merge()' do
     pairs2, h2 = create_same_key.(entries2)
     pairs2.key(-1).callback = ->(*){h2.clear}
     assert_modified_error{HashTest.merge(h1, h2)}
+  end
 
-    # TODO: receiver
+  [ar_entries, ht_entries].each do |entries1|
+    k1, k2 = HashKey[-1], HashKey[-2]
+    h1 = entries1.push([k1, -1]).hash_for
+    h2 = HashEntries[[k2, -2]].hash_for
+    k1.error = true
+    assert_nothing_raised{HashTest.merge(h1, h2)}
+    k3, k4 = HashKey[-3], HashKey[-4]
+    h1[k3] = -3
+    h2[k4] = -4
+    k4.error = true
+    assert_raise{HashTest.merge(h1, h2)}
   end
 end
 
