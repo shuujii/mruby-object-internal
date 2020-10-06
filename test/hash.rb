@@ -689,11 +689,11 @@ if RUN_SLOW_TEST
   assert 'large Hash' do
     entries = (1..70000).map {|n| [n, n * 2]}
     h = {}
-    # TODO: 遅くなるので each を使わない
-    entries.each {|k, v| h[k] = v}
-    assert_equal(entries.size, h.size)
+    size = entries.size
+    n = 0; (h.store(*entries[n]); n+=1) while n < size
+    assert_equal(size, h.size)
     assert_equal(entries, h.to_a)
-    entries.each {|k, v| assert_equal(v, h[k])}
+    n = 0; (k, v = entries[n]; assert_equal(v, h[k]); n+=1) while n < size
   end
 end
 
