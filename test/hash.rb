@@ -20,7 +20,7 @@ RUN_H_CHECK_MODIFIED = true
 module Enumerable
   def to_h(&block)
     h = {}
-    each{|e| h.store(*block.(e))}
+    each{h.store(*block.(_1))}
     h
   end
 end
@@ -30,11 +30,10 @@ class HashKey
 
   self.class.alias_method :[], :new
 
-  def initialize(value, error: nil, callback: nil, &block)
+  def initialize(value, error: nil, callback: nil)
     @value = value
     @error = error
     @callback = callback
-    block.(self) if block
   end
 
   def ==(other)
