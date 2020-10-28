@@ -40,7 +40,9 @@ DEFINE_FLAG_PREDICATE_FUNC(embedded, EMBED)
 DEFINE_FLAG_PREDICATE_FUNC(shared, SHARED)
 DEFINE_FLAG_PREDICATE_FUNC(fshared, FSHARED)
 DEFINE_FLAG_PREDICATE_FUNC(nofree, NOFREE)
+#ifdef MRB_STR_POOL
 DEFINE_FLAG_PREDICATE_FUNC(pool, POOL)
+#endif
 DEFINE_FLAG_PREDICATE_FUNC(ascii, ASCII)
 
 static mrb_value
@@ -125,7 +127,9 @@ str_internal_inspect(mrb_state *mrb, mrb_value self)
   INSPECT_INTERNAL(ret, self, "shared?         ", shared_p);
   INSPECT_INTERNAL(ret, self, "fshared?        ", fshared_p);
   INSPECT_INTERNAL(ret, self, "nofree?         ", nofree_p);
+#ifdef MRB_STR_POOL
   INSPECT_INTERNAL(ret, self, "pool?           ", pool_p);
+#endif
   INSPECT_INTERNAL(ret, self, "ascii?          ", ascii_p);
   INSPECT_INTERNAL(ret, self, "ro_data?        ", ro_data_p);
   INSPECT_INTERNAL(ret, self, "null_terminated?", null_terminated_p);
@@ -156,7 +160,9 @@ mrb_mruby_object_internal_init_string(mrb_state* mrb)
   mrb_define_method(mrb, c, "shared?", str_shared_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "fshared?", str_fshared_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "nofree?", str_nofree_p, MRB_ARGS_NONE());
+#ifdef MRB_STR_POOL
   mrb_define_method(mrb, c, "pool?", str_pool_p, MRB_ARGS_NONE());
+#endif
   mrb_define_method(mrb, c, "ascii?", str_ascii_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "ro_data?", str_ro_data_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "null_terminated?", str_null_terminated_p, MRB_ARGS_NONE());
