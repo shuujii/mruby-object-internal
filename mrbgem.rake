@@ -21,6 +21,6 @@ MRuby::Gem::Specification.new("mruby-object-internal") do |spec|
       end
     end
     build.libmruby_objs.concat(objs)
-    test_objs.concat(test_objs)
+    spec.test_objs.concat(test_objs)
   end
 end
