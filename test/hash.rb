@@ -15,7 +15,7 @@ RUN_SLOW_TEST = false
 # nature of the allocator and the test may not work as expected, so it is
 # not detected well.
 #
-RUN_H_CHECK_MODIFIED = true
+RUN_H_CHECK_MODIFIED = false
 
 module Enumerable
   def to_h(&block)
