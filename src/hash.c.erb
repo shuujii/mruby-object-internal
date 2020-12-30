@@ -58,7 +58,7 @@ PRAGMA_WARNING(pop)
 static mrb_value
 value_from_ptr(mrb_state *mrb, void *ptr)
 {
-  return ptr ? mrb_int_value(mrb, (mrb_float)(uintptr_t)ptr) : mrb_nil_value();
+  return ptr ? mrb_int_value(mrb, (mrb_int)(uintptr_t)ptr) : mrb_nil_value();
 }
 
 % attrs.each do |a|
