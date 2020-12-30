@@ -21,13 +21,13 @@
 %   {c_name: "live_after_mark"},
 %   {c_name: "threshold"},
 %   {c_name: "majorgc_old_threshold", name: "major_old_threshold"},
-% ].each do |c|
-%   c[:name] ||= c[:c_name]
+% ].each do |a|
+%   a[:name] ||= a[:c_name]
 % end
 %
 % colors = %w[white_a white_b gray black]
 %
-% macros = consts.map{_1[:c_name]}.concat %w[
+% macros = consts.map{|c| c[:c_name]}.concat %w[
 %   GC_GRAY
 %   GC_WHITE_A
 %   GC_WHITE_B
